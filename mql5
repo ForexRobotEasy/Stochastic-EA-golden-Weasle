@@ -1,0 +1,117 @@
+mql5
+//+------------------------------------------------------------------+
+//|                                         Stochastic EA Golden Weasle|
+//|                                                              |
+//|                                             Developer: Forex Robot Easy Team|
+//|                                             Website: forexroboteasy.com|
+//+------------------------------------------------------------------+
+
+//---- Input parameters
+input int MaxPositions = 5; // Maximum number of positions
+input double Volume = 0.01; // Desired volume for trading
+input bool DynamicVolume = true; // Enable dynamic volume adjustment based on account balance
+input double TopProfitLevel = 100.0; // Top profit level
+input double StopLossBuy = 50.0; // Buy StopLoss
+input double StopLossSell = 50.0; // Sell StopLoss
+input bool OperateWithoutStopLoss = false; // Option to operate without StopLoss
+
+//+------------------------------------------------------------------+
+//| Expert advisor initialization function |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+    // Add initialization code here
+    return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert advisor start function |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+    // Get Stochastic signals for market analysis
+    double stochMainLine = iStochastic(NULL, 0, 5, 3, 3, MODE_MAIN, 0);
+    double stochSignalLine = iStochastic(NULL, 0, 5, 3, 3, MODE_SIGNAL, 0);
+    
+    // Open and close positions based on Stochastic signals
+    if(stochMainLine > stochSignalLine)
+    {
+        // Open Buy position
+        if(PositionSelect(Symbol()) < MaxPositions)
+        {
+            double lotSize = Volume;
+            if(DynamicVolume)
+            {
+                lotSize *= AccountBalance() / 10000; // Adjust volume based on account balance
+            }
+            
+            double stopLoss = 0;
+            if(!OperateWithoutStopLoss)
+            {
+                stopLoss = StopLossBuy;
+            }
+            
+            if(OrderSend(Symbol(), OP_BUY, lotSize, Ask, 0, stopLoss, 0, 'Buy', 0, 0, Green) >= 0)
+            {
+                // Order opened successfully
+            }
+            else
+            {
+                Print('Failed to open Buy position: ', GetLastError());
+            }
+        }
+    }
+    else if(stochMainLine < stochSignalLine)
+    {
+        // Close Buy positions
+        for(int i = 0; i < PositionsTotal(); i++)
+        {
+            if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+            {
+                if(!OperateWithoutStopLoss && PositionGetDouble(POSITION_SL) == 0)
+                {
+                    if(PositionSetStopLoss(i, StopLossBuy) == false)
+                    {
+                        Print('Failed to set Buy StopLoss: ', GetLastError());
+                    }
+                }
+                
+                if(OrderClose(PositionGetTicket(i), PositionGetDouble(POSITION_VOLUME), Bid, 0, Red))
+                {
+                    // Order closed successfully
+                }
+                else
+                {
+                    Print('Failed to close Buy position: ', GetLastError());
+                }
+            }
+        }
+    }
+    
+    // Add profit management based on specified level
+    for(int i = 0; i < PositionsTotal(); i++)
+    {
+        if(PositionGetSymbol(i) == Symbol())
+        {
+            if(PositionGetDouble(POSITION_PROFIT) >= TopProfitLevel)
+            {
+                if(OrderClose(PositionGetTicket(i), PositionGetDouble(POSITION_VOLUME), Bid, 0, Red))
+                {
+                    // Order closed successfully
+                }
+                else
+                {
+                    Print('Failed to close position: ', GetLastError());
+                }
+            }
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Expert advisor deinitialization function |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+    // Add deinitialization code here
+}
